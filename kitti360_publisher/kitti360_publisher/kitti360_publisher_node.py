@@ -421,6 +421,9 @@ class Kitti360DataPublisher(Node):
         # -1 --> sim time before first frame
         # using != instead of > to make seeking easier
         if next_frame != -1 and next_frame != self.last_published_frame:
+            if(self.last_published_frame is None):
+                self.last_published_frame = next_frame -1
+            
             skipped = next_frame - self.last_published_frame - 1
             # logfunc = rospy.logwarn if skipped > 0 else self.logger.info
             logfunc = self.warning_logger.warning if skipped > 0 else self.logger.info
