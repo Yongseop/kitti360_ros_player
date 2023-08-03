@@ -19,7 +19,6 @@
 # IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
 # OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-# import rospy
 import rclpy
 import rclpy.logging as logging
 from rclpy.duration import Duration
@@ -50,6 +49,8 @@ import itertools
 from kitti360_msgs.msg import Kitti360BoundingBox, Kitti360SemanticID, Kitti360SemanticRGB, Kitti360InstanceID, Kitti360Confidence
 from .labels import id2label, name2label
 from rcl_interfaces.msg import ParameterType
+
+from pytictoc import TicToc
 
 class Kitti360DataPublisher(Node):
     NODENAME = "publisher_node"
@@ -253,7 +254,7 @@ class Kitti360DataPublisher(Node):
         
         self.logger = self.get_logger()
         self.warning_logger = self.get_logger()
-        self.warning_logger.set_level(rclpy.logging.LoggingSeverity.WARN)
+        self.warning_logger.set_level(rclpy.logging.LoggingSeverity.INFO)
 
         self.logger.info("   ___ ___ ___ ___   _   _   _             _   _   __   _")
         self.logger.info("|/  |   |   |   | __ _) |_  / \   o ._    |_) / \ (_   |_|")
@@ -364,9 +365,11 @@ class Kitti360DataPublisher(Node):
 
         # ------------------------------------------
         # terminal simulation control
-        input_thread = threading.Thread(target=self.terminal_sim_control)
-        input_thread.daemon = True
-        input_thread.start()
+        # input_thread = threading.Thread(target=self.terminal_sim_control)
+        # input_thread.daemon = True
+        # input_thread.start()
+
+        self.warning_logger.set_level(rclpy.logging.LoggingSeverity.WARN)
 
     # ------------------------------------------
     # MAIN LOOP
@@ -406,7 +409,6 @@ class Kitti360DataPublisher(Node):
         # resumed
         # --> (ts when sim was resumed) + (timedelta since then it was resumed)
         _ = self.sim_to_resume_at + (time.time() - self.system_time_simulation_resumed) * self.sim_playback_speed
-        # self.sim_clock.clock = rospy.Time.from_sec(_)
         self.sim_clock.clock = rclpy.time.Time(seconds=_).to_msg()
 
         # for benchmarking
@@ -482,7 +484,6 @@ class Kitti360DataPublisher(Node):
         ci_msg_00 = CameraInfo()
         # not sure what to put here. doc says acquisition time of image
         ci_msg_00.header.stamp = rclpy.time.Time().to_msg()
-        
         ci_msg_00.header.frame_id = "kitti360_cam_00"
 
         ci_msg_00.width = 1392
@@ -706,19 +707,12 @@ class Kitti360DataPublisher(Node):
             # resulting timestamps is the time that has passed from the
             # beginning of the in nanosecond precision
 
-            # return (
-            #     pd.to_datetime(
-            #         pd.read_csv(path, header=None).squeeze("columns")) -
-            #     begin_timestamp_sequence[self.SEQUENCE]
-            # ).apply(lambda t: rospy.Time(
-            #     secs=t.seconds, nsecs=(t.microseconds * 1000) + t.nanoseconds))
-
             return (
                 pd.to_datetime(
                     pd.read_csv(path, header=None).squeeze("columns")) -
                 begin_timestamp_sequence[self.SEQUENCE]
             ).apply(lambda t: rclpy.time.Time(seconds=t.seconds, nanoseconds=(t.microseconds * 1000) + t.nanoseconds).to_msg())
-        
+
         # VELODYNE POINTS
         # data_3d_raw/2013_05_28_drive_{seq:0>4}_sync/velodyne_points/timestamps.txt
         try:
@@ -877,7 +871,6 @@ class Kitti360DataPublisher(Node):
         # check if and how many frames we are skipping
         if self.last_published_sick_frame is not None:
             skipped = next_frame - self.last_published_sick_frame - 1
-            # logfunc = rospy.logwarn if skipped > 0 else self.logger.info
             logfunc = self.logger.warning if skipped > 0 else self.logger.info
             if skipped >= 0:
                 skipped_string = f"(skipping {skipped})"
@@ -934,7 +927,7 @@ class Kitti360DataPublisher(Node):
         cloud_msg.is_bigendian = False
         cloud_msg.point_step = 12  # 3 * 4bytes (float32)
         cloud_msg.row_step = 12  # a row is a point in our case
-        cloud_msg.data = pointcloud_bin.tobytes()
+        cloud_msg.data.frombytes(pointcloud_bin.tobytes())
         cloud_msg.is_dense = True
 
         # publish
@@ -1211,7 +1204,7 @@ class Kitti360DataPublisher(Node):
                         self.DATA_DIRECTORY, "data_2d_raw",
                         self.SEQUENCE_DIRECTORY, image_dir,
                         self._convert_frame_int_to_string(frame) + ".png"))
-                image_msg.data = image.tobytes()
+                image_msg.data.frombytes(image.tobytes())
             except FileNotFoundError:
                 return None
 
@@ -1328,6 +1321,8 @@ class Kitti360DataPublisher(Node):
     def _publish_velodyne(self, frame):
         # if this is false either it was set or the data dir was not found in a
         # previous attempt of this function
+        _time = TicToc()
+        
         if not self.publish_velodyne:
             return dict()
 
@@ -1338,7 +1333,6 @@ class Kitti360DataPublisher(Node):
         data_path = os.path.join(self.DATA_DIRECTORY, "data_3d_raw",
                                  self.SEQUENCE_DIRECTORY, "velodyne_points",
                                  "data")
-
         if not os.path.exists(data_path):
             self.logger.error(
                 f"{data_path} does not exist. Disabling velodyne pointclouds.")
@@ -1350,6 +1344,8 @@ class Kitti360DataPublisher(Node):
             self._convert_frame_int_to_string(frame) + ".bin"),
                                      dtype=np.float32)
         pointcloud_bin = pointcloud_bin.reshape((-1, 4))
+
+        # _time.toc()
 
         # PointCloud2 Message http://docs.ros.org/en/lunar/api/sensor_msgs/html/msg/PointCloud2.html
         # Header http://docs.ros.org/en/lunar/api/std_msgs/html/msg/Header.html
@@ -1367,15 +1363,22 @@ class Kitti360DataPublisher(Node):
             PointField(name="z", offset=8, datatype=PointField.FLOAT32, count=1),
             PointField(name="intensity", offset=12, datatype=PointField.FLOAT32, count=1)
         ]
+
         # both True and False worked, so idk
         cloud_msg.is_bigendian = False
         cloud_msg.point_step = 16  # 4 * 4bytes (float32)
         cloud_msg.row_step = 16  # a row is a point in our case
-        cloud_msg.data = pointcloud_bin.tobytes()
+
+        # _time.tic()
+        cloud_msg.data.frombytes(pointcloud_bin.tobytes())
+        # _time.toc()
+
         cloud_msg.is_dense = True
 
         # publish
+        # _time.tic()
         self.ros_publisher_3d_raw_velodyne.publish(cloud_msg)
+        # _time.toc()
 
         return dict([("velodyne", time.time() - s)])
 
@@ -1429,7 +1432,7 @@ class Kitti360DataPublisher(Node):
         cloud_msg.is_bigendian = False
         cloud_msg.point_step = 18  # 4 * 4bytes (float32)
         cloud_msg.row_step = 18  # a row is a point in our case
-        cloud_msg.data = points.tobytes()
+        cloud_msg.data.frombytes(points.tobytes())
         cloud_msg.is_dense = True
 
         # publish
@@ -1610,7 +1613,7 @@ class Kitti360DataPublisher(Node):
                 msg.is_bigendian = False
                 msg.point_step = row_byte_length  #
                 msg.row_step = row_byte_length  # a row is a point in our case
-                msg.data = self.records_3d_semantics_dynamic
+                msg.data.frombytes(self.records_3d_semantics_dynamic)
                 msg.is_dense = True
                 self.ros_publisher_3d_semantics_dynamic.publish(msg)
                 durations["3d semantics dynamic"] = time.time() - s
@@ -1663,7 +1666,7 @@ class Kitti360DataPublisher(Node):
                 msg.is_bigendian = False
                 msg.point_step = row_byte_length  #
                 msg.row_step = row_byte_length  # a row is a point in our case
-                msg.data = self.records_3d_semantics_static
+                msg.data.frombytes(self.records_3d_semantics_static)
                 msg.is_dense = True
                 self.ros_publisher_3d_semantics_static.publish(msg)
                 durations["3d semantics static"] = time.time() - s
@@ -1937,11 +1940,7 @@ class Kitti360DataPublisher(Node):
 
         timestamps = pd.Series([t.sec + t.nanosec / 1e9 for t in self.timestamps_velodyne])
         new_timestamp = self.sim_clock.clock.sec + self.sim_clock.clock.nanosec / 1e9
-        index = timestamps.searchsorted(new_timestamp) - 1
-
-        # index = self.timestamps_velodyne.searchsorted(self.sim_clock.clock) - 1
-
-        return index
+        return timestamps.searchsorted(new_timestamp) - 1
 
     def _on_last_frame(self):
         """returns whether last published frame is the last frame of the simulation"""
@@ -1985,7 +1984,6 @@ def getch():
 def main():
     rclpy.init(args=sys.argv)
     kdp = Kitti360DataPublisher()
-
     kdp.print_help()
     kdp.run()
 
