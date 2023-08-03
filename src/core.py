@@ -376,8 +376,8 @@ class Kitti360DataPublisher:
         # -1 --> sim time before first frame
         # using != instead of > to make seeking easier
         if next_frame != -1 and next_frame != self.last_published_frame:
-            print(next_frame) 
-            print(self.last_published_frame)
+            if(self.last_published_frame is None):
+                self.last_published_frame = next_frame -1
             
             skipped = next_frame - self.last_published_frame - 1
             logfunc = rospy.logwarn if skipped > 0 else rospy.loginfo
@@ -1338,16 +1338,16 @@ class Kitti360DataPublisher:
         cloud_msg.point_step = 16  # 4 * 4bytes (float32)
         cloud_msg.row_step = 16  # a row is a point in our case
 
-        _time.tic()
+        #_time.tic()
         cloud_msg.data = pointcloud_bin.tobytes()
-        _time.toc()
+        #_time.toc()
 
         cloud_msg.is_dense = True
 
         # publish
-        _time.tic()
+        #_time.tic()
         self.ros_publisher_3d_raw_velodyne.publish(cloud_msg)
-        _time.toc()
+        #_time.toc()
 
         return dict([("velodyne", time.time() - s)])
 
