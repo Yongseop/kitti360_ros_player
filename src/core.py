@@ -44,6 +44,7 @@ import itertools
 from kitti360_publisher.msg import Kitti360BoundingBox, Kitti360SemanticID, Kitti360SemanticRGB, Kitti360InstanceID, Kitti360Confidence
 from labels import id2label, name2label
 
+from pytictoc import TicToc
 
 class Kitti360DataPublisher:
     NODENAME = "kitti360_publisher"
@@ -264,50 +265,28 @@ class Kitti360DataPublisher:
 
         # ------------------------------------------
         # what to enable/disable
-        self.publish_velodyne = rospy.get_param(
-            "/kitti360_player/pub_velodyne")
-        self.publish_sick_points = rospy.get_param(
-            "/kitti360_player/pub_sick_points")
-        self.publish_velodyne_labeled = rospy.get_param(
-            "/kitti360_player/pub_velodyne_labeled")
-        self.publish_perspective_rectified_left = rospy.get_param(
-            "/kitti360_player/pub_perspective_rectified_left")
-        self.publish_perspective_rectified_right = rospy.get_param(
-            "/kitti360_player/pub_perspective_rectified_right")
-        self.publish_perspective_unrectified_left = rospy.get_param(
-            "/kitti360_player/pub_perspective_unrectified_left")
-        self.publish_perspective_unrectified_right = rospy.get_param(
-            "/kitti360_player/pub_perspective_unrectified_right")
-        self.publish_fisheye_left = rospy.get_param(
-            "/kitti360_player/pub_fisheye_left")
-        self.publish_fisheye_right = rospy.get_param(
-            "/kitti360_player/pub_fisheye_right")
-        self.publish_bounding_boxes = rospy.get_param(
-            "/kitti360_player/pub_bounding_boxes")
-        self.publish_bounding_boxes_rviz_marker = rospy.get_param(
-            "/kitti360_player/pub_bounding_boxes_rviz_marker")
-        self.publish_semantics_semantic_left = rospy.get_param(
-            "/kitti360_player/pub_2d_semantics_left")
-        self.publish_semantics_semantic_right = rospy.get_param(
-            "/kitti360_player/pub_2d_semantics_right")
-        self.publish_semantics_semantic_rgb_left = rospy.get_param(
-            "/kitti360_player/pub_2d_semantics_rgb_left")
-        self.publish_semantics_semantic_rgb_right = rospy.get_param(
-            "/kitti360_player/pub_2d_semantics_rgb_right")
-        self.publish_semantics_instance_left = rospy.get_param(
-            "/kitti360_player/pub_2d_instance_left")
-        self.publish_semantics_instance_right = rospy.get_param(
-            "/kitti360_player/pub_2d_instance_right")
-        self.publish_semantics_confidence_left = rospy.get_param(
-            "/kitti360_player/pub_2d_confidence_left")
-        self.publish_semantics_confidence_right = rospy.get_param(
-            "/kitti360_player/pub_2d_confidence_right")
-        self.publish_3d_semantics_static = rospy.get_param(
-            "/kitti360_player/pub_3d_semantics_static")
-        self.publish_3d_semantics_dynamic = rospy.get_param(
-            "/kitti360_player/pub_3d_semantics_dynamic")
-        self.publish_camera_intrinsics = rospy.get_param(
-            "/kitti360_player/pub_camera_intrinsics")
+        self.publish_velodyne = rospy.get_param("/kitti360_player/pub_velodyne")
+        self.publish_sick_points = rospy.get_param("/kitti360_player/pub_sick_points")
+        self.publish_velodyne_labeled = rospy.get_param("/kitti360_player/pub_velodyne_labeled")
+        self.publish_perspective_rectified_left = rospy.get_param("/kitti360_player/pub_perspective_rectified_left")
+        self.publish_perspective_rectified_right = rospy.get_param("/kitti360_player/pub_perspective_rectified_right")
+        self.publish_perspective_unrectified_left = rospy.get_param("/kitti360_player/pub_perspective_unrectified_left")
+        self.publish_perspective_unrectified_right = rospy.get_param("/kitti360_player/pub_perspective_unrectified_right")
+        self.publish_fisheye_left = rospy.get_param("/kitti360_player/pub_fisheye_left")
+        self.publish_fisheye_right = rospy.get_param("/kitti360_player/pub_fisheye_right")
+        self.publish_bounding_boxes = rospy.get_param("/kitti360_player/pub_bounding_boxes")
+        self.publish_bounding_boxes_rviz_marker = rospy.get_param("/kitti360_player/pub_bounding_boxes_rviz_marker")
+        self.publish_semantics_semantic_left = rospy.get_param("/kitti360_player/pub_2d_semantics_left")
+        self.publish_semantics_semantic_right = rospy.get_param("/kitti360_player/pub_2d_semantics_right")
+        self.publish_semantics_semantic_rgb_left = rospy.get_param("/kitti360_player/pub_2d_semantics_rgb_left")
+        self.publish_semantics_semantic_rgb_right = rospy.get_param("/kitti360_player/pub_2d_semantics_rgb_right")
+        self.publish_semantics_instance_left = rospy.get_param("/kitti360_player/pub_2d_instance_left")
+        self.publish_semantics_instance_right = rospy.get_param("/kitti360_player/pub_2d_instance_right")
+        self.publish_semantics_confidence_left = rospy.get_param("/kitti360_player/pub_2d_confidence_left")
+        self.publish_semantics_confidence_right = rospy.get_param("/kitti360_player/pub_2d_confidence_right")
+        self.publish_3d_semantics_static = rospy.get_param("/kitti360_player/pub_3d_semantics_static")
+        self.publish_3d_semantics_dynamic = rospy.get_param("/kitti360_player/pub_3d_semantics_dynamic")
+        self.publish_camera_intrinsics = rospy.get_param("/kitti360_player/pub_camera_intrinsics")
 
         rospy.loginfo(
             "Filling caches and preprocessing... this can take few seconds!")
@@ -344,9 +323,9 @@ class Kitti360DataPublisher:
 
         # ------------------------------------------
         # terminal simulation control
-        input_thread = threading.Thread(target=self.terminal_sim_control)
-        input_thread.daemon = True
-        input_thread.start()
+        # input_thread = threading.Thread(target=self.terminal_sim_control)
+        # input_thread.daemon = True
+        # input_thread.start()
 
     # ------------------------------------------
     # MAIN LOOP
@@ -385,10 +364,7 @@ class Kitti360DataPublisher:
         # update simulation clock based on when the simulation was last
         # resumed
         # --> (ts when sim was resumed) + (timedelta since then it was resumed)
-        self.sim_clock.clock = rospy.Time.from_sec(
-            self.sim_to_resume_at +
-            (time.time() - self.system_time_simulation_resumed) *
-            self.sim_playback_speed)
+        self.sim_clock.clock = rospy.Time.from_sec(self.sim_to_resume_at + (time.time() - self.system_time_simulation_resumed) * self.sim_playback_speed)
 
         # for benchmarking
         sim_update_durations = dict()
@@ -400,6 +376,9 @@ class Kitti360DataPublisher:
         # -1 --> sim time before first frame
         # using != instead of > to make seeking easier
         if next_frame != -1 and next_frame != self.last_published_frame:
+            print(next_frame) 
+            print(self.last_published_frame)
+            
             skipped = next_frame - self.last_published_frame - 1
             logfunc = rospy.logwarn if skipped > 0 else rospy.loginfo
             if skipped >= 0:
@@ -570,9 +549,7 @@ class Kitti360DataPublisher:
         self.ros_publisher_camera_intrinsics_fisheye_right.publish(ci_msg_03)
 
     def init_publishers(self):
-        self.ros_publisher_clock = rospy.Publisher("clock",
-                                                   Clock,
-                                                   queue_size=10)
+        self.ros_publisher_clock = rospy.Publisher("clock", Clock, queue_size=10)
         if self.publish_velodyne:
             self.ros_publisher_3d_raw_velodyne = rospy.Publisher(
                 "kitti360/cloud", PointCloud2, queue_size=1)
@@ -590,14 +567,10 @@ class Kitti360DataPublisher:
                 "kitti360/2d/perspective/rectified_right", Image, queue_size=1)
         if self.publish_perspective_unrectified_left:
             self.ros_publisher_2d_raw_perspective_unrectified_left = rospy.Publisher(
-                "kitti360/2d/perspective/unrectified_left",
-                Image,
-                queue_size=1)
+                "kitti360/2d/perspective/unrectified_left", Image, queue_size=1)
         if self.publish_perspective_unrectified_right:
             self.ros_publisher_2d_raw_perspective_unrectified_right = rospy.Publisher(
-                "kitti360/2d/perspective/unrectified_right",
-                Image,
-                queue_size=1)
+                "kitti360/2d/perspective/unrectified_right", Image, queue_size=1)
         if self.publish_fisheye_left:
             self.ros_publisher_2d_raw_fisheye_left = rospy.Publisher(
                 "kitti360/2d/fisheye/left", Image, queue_size=1)
@@ -606,71 +579,43 @@ class Kitti360DataPublisher:
                 "kitti360/2d/fisheye/right", Image, queue_size=1)
         if self.publish_camera_intrinsics:
             self.ros_publisher_camera_intrinsics_unrectified_left = rospy.Publisher(
-                "kitti360/2d/perspective/unrectified_left_camera_info",
-                CameraInfo,
-                queue_size=1)
+                "kitti360/2d/perspective/unrectified_left_camera_info", CameraInfo, queue_size=1)
             self.ros_publisher_camera_intrinsics_unrectified_right = rospy.Publisher(
-                "kitti360/2d/perspective/unrectified_right_camera_info",
-                CameraInfo,
-                queue_size=1)
+                "kitti360/2d/perspective/unrectified_right_camera_info", CameraInfo, queue_size=1)
             self.ros_publisher_camera_intrinsics_fisheye_left = rospy.Publisher(
-                "kitti360/2d/fisheye/unrectified_left_camera_info",
-                CameraInfo,
-                queue_size=1)
+                "kitti360/2d/fisheye/unrectified_left_camera_info", CameraInfo, queue_size=1)
             self.ros_publisher_camera_intrinsics_fisheye_right = rospy.Publisher(
-                "kitti360/2d/fisheye/unrectified_right_camera_info",
-                CameraInfo,
-                queue_size=1)
+                "kitti360/2d/fisheye/unrectified_right_camera_info", CameraInfo, queue_size=1)
         if self.publish_bounding_boxes:
             self.ros_publisher_bounding_boxes = rospy.Publisher(
-                "kitti360/3d/bounding_boxes",
-                Kitti360BoundingBox,
-                queue_size=1)
+                "kitti360/3d/bounding_boxes", Kitti360BoundingBox, queue_size=1)
         if self.publish_bounding_boxes_rviz_marker:
             self.ros_publisher_bounding_boxes_rviz_marker = rospy.Publisher(
-                "kitti360/3d/bounding_boxes_rviz_marker",
-                MarkerArray,
-                queue_size=1)
+                "kitti360/3d/bounding_boxes_rviz_marker", MarkerArray, queue_size=1)
         if self.publish_semantics_semantic_left:
             self.ros_publisher_2d_semantics_semantic_left = rospy.Publisher(
-                "kitti360/2d/semantics/semantic_left",
-                Kitti360SemanticID,
-                queue_size=1)
+                "kitti360/2d/semantics/semantic_left", Kitti360SemanticID, queue_size=1)
         if self.publish_semantics_semantic_right:
             self.ros_publisher_2d_semantics_semantic_right = rospy.Publisher(
-                "kitti360/2d/semantics/semantic_right",
-                Kitti360SemanticID,
-                queue_size=1)
+                "kitti360/2d/semantics/semantic_right", Kitti360SemanticID, queue_size=1)
         if self.publish_semantics_semantic_rgb_left:
             self.ros_publisher_2d_semantics_semantic_rgb_left = rospy.Publisher(
-                "kitti360/2d/semantics/semantic_rgb_left",
-                Kitti360SemanticRGB,
-                queue_size=1)
+                "kitti360/2d/semantics/semantic_rgb_left", Kitti360SemanticRGB, queue_size=1)
         if self.publish_semantics_semantic_rgb_right:
             self.ros_publisher_2d_semantics_semantic_rgb_right = rospy.Publisher(
-                "kitti360/2d/semantics/semantic_rgb_right",
-                Kitti360SemanticRGB,
-                queue_size=1)
+                "kitti360/2d/semantics/semantic_rgb_right", Kitti360SemanticRGB, queue_size=1)
         if self.publish_semantics_instance_left:
             self.ros_publisher_2d_semantics_instance_left = rospy.Publisher(
-                "kitti360/2d/semantics/instance_left",
-                Kitti360InstanceID,
-                queue_size=1)
+                "kitti360/2d/semantics/instance_left", Kitti360InstanceID, queue_size=1)
         if self.publish_semantics_instance_right:
             self.ros_publisher_2d_semantics_instance_right = rospy.Publisher(
-                "kitti360/2d/semantics/instance_right",
-                Kitti360InstanceID,
-                queue_size=1)
+                "kitti360/2d/semantics/instance_right", Kitti360InstanceID, queue_size=1)
         if self.publish_semantics_confidence_left:
             self.ros_publisher_2d_semantics_confidence_left = rospy.Publisher(
-                "kitti360/2d/semantics/confidence_left",
-                Kitti360Confidence,
-                queue_size=1)
+                "kitti360/2d/semantics/confidence_left", Kitti360Confidence, queue_size=1)
         if self.publish_semantics_confidence_right:
             self.ros_publisher_2d_semantics_confidence_right = rospy.Publisher(
-                "kitti360/2d/semantics/confidence_right",
-                Kitti360Confidence,
-                queue_size=1)
+                "kitti360/2d/semantics/confidence_right", Kitti360Confidence, queue_size=1)
         if self.publish_3d_semantics_static:
             self.ros_publisher_3d_semantics_static = rospy.Publisher(
                 "kitti360/3d/semantics/static", PointCloud2, queue_size=1)
@@ -733,8 +678,7 @@ class Kitti360DataPublisher:
                 pd.to_datetime(
                     pd.read_csv(path, header=None).squeeze("columns")) -
                 begin_timestamp_sequence[self.SEQUENCE]
-            ).apply(lambda t: rospy.Time(
-                secs=t.seconds, nsecs=(t.microseconds * 1000) + t.nanoseconds))
+            ).apply(lambda t: rospy.Time(secs=t.seconds, nsecs=(t.microseconds * 1000) + t.nanoseconds))
 
         # VELODYNE POINTS
         # data_3d_raw/2013_05_28_drive_{seq:0>4}_sync/velodyne_points/timestamps.txt
@@ -743,10 +687,8 @@ class Kitti360DataPublisher:
                 os.path.join(self.DATA_DIRECTORY, "data_3d_raw",
                              self.SEQUENCE_DIRECTORY,
                              "velodyne_points/timestamps.txt"))
-            self.total_number_of_frames_velodyne = self.timestamps_velodyne.shape[
-                0]
-            self.total_simulation_time = self.timestamps_velodyne.iloc[
-                -1].to_sec()
+            self.total_number_of_frames_velodyne = self.timestamps_velodyne.shape[0]
+            self.total_simulation_time = self.timestamps_velodyne.iloc[-1].to_sec()
         except FileNotFoundError:
             rospy.logerr("timestamps for velodyne not found. FATAL")
             rospy.signal_shutdown(
@@ -760,12 +702,9 @@ class Kitti360DataPublisher:
                 os.path.join(self.DATA_DIRECTORY, "data_3d_raw",
                              self.SEQUENCE_DIRECTORY,
                              "sick_points/timestamps.txt"))
-            self.total_number_of_frames_sick = self.timestamps_sick_points.shape[
-                0]
-            if self.timestamps_sick_points.iloc[-1].to_sec(
-            ) > self.total_simulation_time:
-                self.total_simulation_time = self.timestamps_sick_points.iloc[
-                    -1].to_sec()
+            self.total_number_of_frames_sick = self.timestamps_sick_points.shape[0]
+            if self.timestamps_sick_points.iloc[-1].to_sec() > self.total_simulation_time:
+                self.total_simulation_time = self.timestamps_sick_points.iloc[-1].to_sec()
         except FileNotFoundError:
             rospy.logerr("timestamps for sick points not found. Disabling.")
             self.publish_sick_points = False
@@ -886,8 +825,7 @@ class Kitti360DataPublisher:
         if not self.publish_sick_points:
             return dict()
 
-        next_frame = self.timestamps_sick_points.searchsorted(
-            self.sim_clock.clock) - 1
+        next_frame = self.timestamps_sick_points.searchsorted(self.sim_clock.clock) - 1
 
         # if we are before first frame or or frame that needs to be published
         # has already been published --> return
@@ -946,9 +884,9 @@ class Kitti360DataPublisher:
         cloud_msg.height = pointcloud_bin.shape[0]
         cloud_msg.width = 1
         cloud_msg.fields = [
-            PointField("x", 0, PointField.FLOAT32, 1),
-            PointField("y", 4, PointField.FLOAT32, 1),
-            PointField("z", 8, PointField.FLOAT32, 1),
+            PointField(name="x", offset=0, datatype=PointField.FLOAT32, count=1),
+            PointField(name="y", offset=4, datatype=PointField.FLOAT32, count=1),
+            PointField(name="z", offset=8, datatype=PointField.FLOAT32, count=1),
         ]
         # both True and False worked, so idk
         cloud_msg.is_bigendian = False
@@ -975,8 +913,7 @@ class Kitti360DataPublisher:
 
         # NOTE ranges overlap a little bit ~15 frames
         # this code publishes the latest possible pointcloud (if there are two)
-        index = self.bounding_box_frame_ranges["start_frame"].searchsorted(
-            frame)
+        index = self.bounding_box_frame_ranges["start_frame"].searchsorted(frame)
         if index == self.previous_published_index_bb:
             return dict([("bounding boxes rviz marker", time.time() - s)])
         else:
@@ -1065,8 +1002,7 @@ class Kitti360DataPublisher:
 
         # NOTE ranges overlap a little bit ~15 frames
         # this code publishes the latest possible pointcloud (if there are two)
-        index = self.bounding_box_frame_ranges["start_frame"].searchsorted(
-            frame)
+        index = self.bounding_box_frame_ranges["start_frame"].searchsorted(frame)
         if index == self.previous_published_index_bb_rviz:
             return dict([("bounding boxes rviz marker", time.time() - s)])
         else:
@@ -1189,12 +1125,9 @@ class Kitti360DataPublisher:
                 "vendingmachine": "vending machine"
             }
             if bb_data["label"] not in name2label:
-                c.r = name2label[missing_label_mapping[
-                    bb_data["label"]]].color[0]
-                c.g = name2label[missing_label_mapping[
-                    bb_data["label"]]].color[1]
-                c.b = name2label[missing_label_mapping[
-                    bb_data["label"]]].color[2]
+                c.r = name2label[missing_label_mapping[bb_data["label"]]].color[0]
+                c.g = name2label[missing_label_mapping[bb_data["label"]]].color[1]
+                c.b = name2label[missing_label_mapping[bb_data["label"]]].color[2]
             else:
                 c.r = name2label[bb_data["label"]].color[0]
                 c.g = name2label[bb_data["label"]].color[1]
@@ -1355,6 +1288,8 @@ class Kitti360DataPublisher:
     def _publish_velodyne(self, frame):
         # if this is false either it was set or the data dir was not found in a
         # previous attempt of this function
+        _time = TicToc()
+        
         if not self.publish_velodyne:
             return dict()
 
@@ -1365,7 +1300,7 @@ class Kitti360DataPublisher:
         data_path = os.path.join(self.DATA_DIRECTORY, "data_3d_raw",
                                  self.SEQUENCE_DIRECTORY, "velodyne_points",
                                  "data")
-
+        
         if not os.path.exists(data_path):
             rospy.logerr(
                 f"{data_path} does not exist. Disabling velodyne pointclouds.")
@@ -1377,6 +1312,8 @@ class Kitti360DataPublisher:
             self._convert_frame_int_to_string(frame) + ".bin"),
                                      dtype=np.float32)
         pointcloud_bin = pointcloud_bin.reshape((-1, 4))
+
+        # _time.toc()
 
         # PointCloud2 Message http://docs.ros.org/en/lunar/api/sensor_msgs/html/msg/PointCloud2.html
         # Header http://docs.ros.org/en/lunar/api/std_msgs/html/msg/Header.html
@@ -1390,20 +1327,27 @@ class Kitti360DataPublisher:
         cloud_msg.height = pointcloud_bin.shape[0]
         cloud_msg.width = 1
         cloud_msg.fields = [
-            PointField("x", 0, PointField.FLOAT32, 1),
-            PointField("y", 4, PointField.FLOAT32, 1),
-            PointField("z", 8, PointField.FLOAT32, 1),
-            PointField("intensity", 12, PointField.FLOAT32, 1)
+            PointField(name="x", offset=0, datatype=PointField.FLOAT32, count=1),
+            PointField(name="y", offset=4, datatype=PointField.FLOAT32, count=1),
+            PointField(name="z", offset=8, datatype=PointField.FLOAT32, count=1),
+            PointField(name="intensity", offset=12, datatype=PointField.FLOAT32, count=1)
         ]
+
         # both True and False worked, so idk
         cloud_msg.is_bigendian = False
         cloud_msg.point_step = 16  # 4 * 4bytes (float32)
         cloud_msg.row_step = 16  # a row is a point in our case
+
+        _time.tic()
         cloud_msg.data = pointcloud_bin.tobytes()
+        _time.toc()
+
         cloud_msg.is_dense = True
 
         # publish
+        _time.tic()
         self.ros_publisher_3d_raw_velodyne.publish(cloud_msg)
+        _time.toc()
 
         return dict([("velodyne", time.time() - s)])
 
@@ -1448,11 +1392,11 @@ class Kitti360DataPublisher:
         cloud_msg.height = points.shape[0]
         cloud_msg.width = 1
         cloud_msg.fields = [
-            PointField("x", 0, PointField.FLOAT32, 1),
-            PointField("y", 4, PointField.FLOAT32, 1),
-            PointField("z", 8, PointField.FLOAT32, 1),
-            PointField("intensity", 12, PointField.FLOAT32, 1),
-            PointField("ring", 16, PointField.UINT16, 1)
+            PointField(name="x", offset=0, datatype=PointField.FLOAT32, count=1),
+            PointField(name="y", offset=4, datatype=PointField.FLOAT32, count=1),
+            PointField(name="z", offset=8, datatype=PointField.FLOAT32, count=1),
+            PointField(name="intensity", offset=12, datatype=PointField.FLOAT32, count=1),
+            PointField(name="ring", offset=16, datatype=PointField.UINT16, count=1)
         ]
         # both True and False worked, so idk
         cloud_msg.is_bigendian = False
@@ -1624,17 +1568,17 @@ class Kitti360DataPublisher:
                         row_byte_length))
                 msg.width = 1
                 msg.fields = [
-                    PointField("x", 0, PointField.FLOAT32, 1),
-                    PointField("y", 4, PointField.FLOAT32, 1),
-                    PointField("z", 8, PointField.FLOAT32, 1),
-                    PointField("red", 12, PointField.UINT8, 1),
-                    PointField("green", 13, PointField.UINT8, 1),
-                    PointField("blue", 14, PointField.UINT8, 1),
-                    PointField("semantic", 15, PointField.INT32, 1),
-                    PointField("instance", 19, PointField.INT32, 1),
-                    PointField("visible", 23, PointField.UINT8, 1),
-                    PointField("timestamp", 24, PointField.INT32, 1),
-                    PointField("confidence", 28, PointField.FLOAT32, 1),
+                    PointField(name="x", offset=0, datatype=PointField.FLOAT32, count=1),
+                    PointField(name="y", offset=4, datatype=PointField.FLOAT32, count=1),
+                    PointField(name="z", offset=8, datatype=PointField.FLOAT32, count=1),
+                    PointField(name="red", offset=12, datatype=PointField.UINT8, count=1),
+                    PointField(name="green", offset=13, datatype=PointField.UINT8, count=1),
+                    PointField(name="blue", offset=14, datatype=PointField.UINT8, count=1),
+                    PointField(name="semantic", offset=15, datatype=PointField.INT32, count=1),
+                    PointField(name="instance", offset=19, datatype=PointField.INT32, count=1),
+                    PointField(name="visible", offset=23, datatype=PointField.UINT8, count=1),
+                    PointField(name="timestamp", offset=24, datatype=PointField.INT32, count=1),
+                    PointField(name="confidence", offset=28, datatype=PointField.FLOAT32, count=1),
                 ]
                 # both True and False worked, so idk
                 msg.is_bigendian = False
@@ -1679,16 +1623,16 @@ class Kitti360DataPublisher:
                         row_byte_length))
                 msg.width = 1
                 msg.fields = [
-                    PointField("x", 0, PointField.FLOAT32, 1),
-                    PointField("y", 4, PointField.FLOAT32, 1),
-                    PointField("z", 8, PointField.FLOAT32, 1),
-                    PointField("red", 12, PointField.UINT8, 1),
-                    PointField("green", 13, PointField.UINT8, 1),
-                    PointField("blue", 14, PointField.UINT8, 1),
-                    PointField("semantic", 15, PointField.INT32, 1),
-                    PointField("instance", 19, PointField.INT32, 1),
-                    PointField("visible", 23, PointField.UINT8, 1),
-                    PointField("confidence", 24, PointField.FLOAT32, 1),
+                    PointField(name="x", offset=0, datatype=PointField.FLOAT32, count=1),
+                    PointField(name="y", offset=4, datatype=PointField.FLOAT32, count=1),
+                    PointField(name="z", offset=8, datatype=PointField.FLOAT32, count=1),
+                    PointField(name="red", offset=12, datatype=PointField.UINT8, count=1),
+                    PointField(name="green", offset=13, datatype=PointField.UINT8, count=1),
+                    PointField(name="blue", offset=14, datatype=PointField.UINT8, count=1),
+                    PointField(name="semantic", offset=15, datatype=PointField.INT32, count=1),
+                    PointField(name="instance", offset=19, datatype=PointField.INT32, count=1),
+                    PointField(name="visible", offset=23, datatype=PointField.UINT8, count=1),
+                    PointField(name="confidence", offset=24, datatype=PointField.FLOAT32, count=1),
                 ]
                 # both True and False worked, so idk
                 msg.is_bigendian = False
@@ -1851,8 +1795,7 @@ class Kitti360DataPublisher:
                 0] - 1:
             # move simulation to next frame
             self._seek(
-                self.timestamps_velodyne.iloc[self.last_published_frame +
-                                              1].to_sec())
+                self.timestamps_velodyne.iloc[self.last_published_frame + 1].to_sec())
         else:
             rospy.loginfo(
                 "Can't advance to next velodyne frame. Simulation is at last frame."
@@ -1869,8 +1812,7 @@ class Kitti360DataPublisher:
         # check if we are already at frame 0
         if self.last_published_frame > 0:
             self._seek(
-                self.timestamps_velodyne.iloc[self.last_published_frame -
-                                              1].to_sec())
+                self.timestamps_velodyne.iloc[self.last_published_frame - 1].to_sec())
         else:
             rospy.loginfo(
                 "Can't step to previous velodyne frame. Simulation already on first frame."
@@ -1891,8 +1833,7 @@ class Kitti360DataPublisher:
                 0] - 1:
             # move simulation to next frame
             self._seek(
-                self.timestamps_sick_points.iloc[self.last_published_sick_frame
-                                                 + 1].to_sec())
+                self.timestamps_sick_points.iloc[self.last_published_sick_frame + 1].to_sec())
         else:
             rospy.loginfo(
                 "Can't advance to next sick frame. Simulation is at last frame."
@@ -1910,8 +1851,7 @@ class Kitti360DataPublisher:
         if self.last_published_sick_frame > 0:
             # move simulation to next frame
             self._seek(
-                self.timestamps_sick_points.iloc[self.last_published_sick_frame
-                                                 - 1].to_sec())
+                self.timestamps_sick_points.iloc[self.last_published_sick_frame - 1].to_sec())
         else:
             rospy.loginfo(
                 "Can't step to previous sick frame. Simulation already on first frame."
