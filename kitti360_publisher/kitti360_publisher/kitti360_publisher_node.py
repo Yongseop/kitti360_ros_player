@@ -740,6 +740,7 @@ class Kitti360DataPublisher(Node):
             self.total_number_of_frames_sick = self.timestamps_sick_points.shape[0]
             if self.timestamps_sick_points.iloc[-1].sec > self.total_simulation_time:
                 self.total_simulation_time = self.timestamps_sick_points.iloc[-1].sec
+            self.timestamps_sick_points_series = pd.Series([t.sec + t.nanosec / 1e9 for t in self.timestamps_sick_points])
         except FileNotFoundError:
             self.logger.error("timestamps for sick points not found. Disabling.")
             self.publish_sick_points = False
@@ -851,7 +852,7 @@ class Kitti360DataPublisher(Node):
 
     # ------------------------------------------
     # PUBLISHING
-    def handle_sick_points_publishing(self):
+    def handle_sick_points_publishing(self):    # YS: Speedup by using predefined timestamp series
         """handles publishing of sick points, which have a higher refresh rate
         (and therefore more frames) to be published"""
 
@@ -860,10 +861,9 @@ class Kitti360DataPublisher(Node):
         if not self.publish_sick_points:
             return dict()
 
-        timestamps = pd.Series([t.sec + t.nanosec / 1e9 for t in self.timestamps_sick_points])
         new_timestamp = self.sim_clock.clock.sec + self.sim_clock.clock.nanosec / 1e9
         # next_frame = self.timestamps_sick_points.searchsorted(self.sim_clock.clock) - 1
-        next_frame = timestamps.searchsorted(new_timestamp) - 1
+        next_frame = self.timestamps_sick_points_series.searchsorted(new_timestamp) - 1
 
         # if we are before first frame or or frame that needs to be published
         # has already been published --> return
@@ -1936,7 +1936,7 @@ class Kitti360DataPublisher(Node):
     def _get_maximum_timestamp(self):
         return self.timestamps_velodyne.iloc[-1]
 
-    def _get_frame_to_be_published(self):	# YS: Problem #2 - clear
+    def _get_frame_to_be_published(self):   # YS: Speedup by using predefined timestamp series
         # get last frame before current simulation time
         # NOTE this returns -1 if the simulation time is before the first frame
         new_timestamp = self.sim_clock.clock.sec + self.sim_clock.clock.nanosec / 1e9
