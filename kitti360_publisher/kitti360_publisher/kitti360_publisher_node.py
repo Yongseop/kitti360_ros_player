@@ -52,6 +52,8 @@ from rcl_interfaces.msg import ParameterType
 
 from pytictoc import TicToc
 
+from PIL import Image as Imagereader
+
 class Kitti360DataPublisher(Node):
     NODENAME = "publisher_node"
     DESIRED_RATE = 100  # Hz
@@ -419,7 +421,7 @@ class Kitti360DataPublisher(Node):
 
         # need to be handles separately because of higher refresh rate
         sim_update_durations.update(self.handle_sick_points_publishing())
-        next_frame = self._get_frame_to_be_published()		# YS: Problem #2
+        next_frame = self._get_frame_to_be_published()
         # -1 --> sim time before first frame
         # using != instead of > to make seeking easier
         if next_frame != -1 and next_frame != self.last_published_frame:
@@ -628,28 +630,28 @@ class Kitti360DataPublisher(Node):
                 MarkerArray, "kitti360_3d/bounding_boxes_rviz_marker", 1)
         if self.publish_semantics_semantic_left:
             self.ros_publisher_2d_semantics_semantic_left = self.create_publisher(
-                Kitti360SemanticID, "kitti360_2d/semantics/semantic_left", 1)
+                Image, "kitti360_2d/semantics/semantic_left", 1)
         if self.publish_semantics_semantic_right:
             self.ros_publisher_2d_semantics_semantic_right = self.create_publisher(
-                Kitti360SemanticID, "kitti360_2d/semantics/semantic_right", 1)
+                Image, "kitti360_2d/semantics/semantic_right", 1)
         if self.publish_semantics_semantic_rgb_left:
             self.ros_publisher_2d_semantics_semantic_rgb_left = self.create_publisher(
-                Kitti360SemanticRGB, "kitti360_2d/semantics/semantic_rgb_left", 1)
+                Image, "kitti360_2d/semantics/semantic_rgb_left", 1)
         if self.publish_semantics_semantic_rgb_right:
             self.ros_publisher_2d_semantics_semantic_rgb_right = self.create_publisher(
-                Kitti360SemanticRGB, "kitti360_2d/semantics/semantic_rgb_right", 1)
+                Image, "kitti360_2d/semantics/semantic_rgb_right", 1)
         if self.publish_semantics_instance_left:
             self.ros_publisher_2d_semantics_instance_left = self.create_publisher(
-                Kitti360InstanceID, "kitti360_2d/semantics/instance_left", 1)
+                Image, "kitti360_2d/semantics/instance_left", 1)
         if self.publish_semantics_instance_right:
             self.ros_publisher_2d_semantics_instance_right = self.create_publisher(
-                Kitti360InstanceID, "kitti360_2d/semantics/instance_right", 1)
+                Image, "kitti360_2d/semantics/instance_right", 1)
         if self.publish_semantics_confidence_left:
             self.ros_publisher_2d_semantics_confidence_left = self.create_publisher(
-                Kitti360Confidence, "kitti360_2d/semantics/confidence_left", 1)
+                Image, "kitti360_2d/semantics/confidence_left", 1)
         if self.publish_semantics_confidence_right:
             self.ros_publisher_2d_semantics_confidence_right = self.create_publisher(
-                Kitti360Confidence, "kitti360_2d/semantics/confidence_right", 1)
+                Image, "kitti360_2d/semantics/confidence_right", 1)
         if self.publish_3d_semantics_static:
             self.ros_publisher_3d_semantics_static = self.create_publisher(
                 PointCloud2, "kitti360_3d/semantics/static", 1)
@@ -1182,6 +1184,8 @@ class Kitti360DataPublisher(Node):
 
         def _construct_message(timestamp_ser, image_dir, frame_id, frame_index,
                                width, height):
+            # _t = TicToc()
+            # _t.tic()
             image_msg = Image()
 
             assert timestamp_ser is not None, "timestamp series cannot be None at the point"
@@ -1201,7 +1205,8 @@ class Kitti360DataPublisher(Node):
             image_msg.step = 3 * image_msg.width
 
             try:
-                image = imageio.v3.imread(
+                image = Imagereader.open(
+                # image = imageio.v3.imread(
                     os.path.join(
                         self.DATA_DIRECTORY, "data_2d_raw",
                         self.SEQUENCE_DIRECTORY, image_dir,
@@ -1210,6 +1215,7 @@ class Kitti360DataPublisher(Node):
             except FileNotFoundError:
                 return None
 
+            # _t.toc()
             return image_msg
 
         # for benchmarking
@@ -1323,8 +1329,6 @@ class Kitti360DataPublisher(Node):
     def _publish_velodyne(self, frame):
         # if this is false either it was set or the data dir was not found in a
         # previous attempt of this function
-        _time = TicToc()
-        
         if not self.publish_velodyne:
             return dict()
 
@@ -1340,14 +1344,12 @@ class Kitti360DataPublisher(Node):
                 f"{data_path} does not exist. Disabling velodyne pointclouds.")
             self.publish_velodyne = False
             return dict()
-
+        
         pointcloud_bin = np.fromfile(os.path.join(
             data_path,
             self._convert_frame_int_to_string(frame) + ".bin"),
                                      dtype=np.float32)
         pointcloud_bin = pointcloud_bin.reshape((-1, 4))
-
-        # _time.toc()
 
         # PointCloud2 Message http://docs.ros.org/en/lunar/api/sensor_msgs/html/msg/PointCloud2.html
         # Header http://docs.ros.org/en/lunar/api/std_msgs/html/msg/Header.html
@@ -1371,16 +1373,12 @@ class Kitti360DataPublisher(Node):
         cloud_msg.point_step = 16  # 4 * 4bytes (float32)
         cloud_msg.row_step = 16  # a row is a point in our case
 
-        # _time.tic()
         cloud_msg.data.frombytes(pointcloud_bin.tobytes())
-        # _time.toc()
 
         cloud_msg.is_dense = True
 
         # publish
-        # _time.tic()
         self.ros_publisher_3d_raw_velodyne.publish(cloud_msg)
-        # _time.toc()
 
         return dict([("velodyne", time.time() - s)])
 
@@ -1442,13 +1440,14 @@ class Kitti360DataPublisher(Node):
 
         return dict([("velodyne labeled", time.time() - s)])
 
-    def _publish_transforms(self, frame):
+    def _publish_transforms(self, frame):       # YS: Slow, but acceptable. 
         # FIXME the pointcloud sometimes jumps out and back when playing at
         # full speed in RVIZ
 
         # transform from GPS/IMU to map (which is identical to world)
+        # _t = TicToc()
+        # _t.tic()
         transform_broadcaster = tf2_ros.TransformBroadcaster(self)
-
         t = TransformStamped()
         # this needs to be the timestamp that the pointcloud also uses
         t.header.stamp = self.timestamps_velodyne.iloc[frame]
@@ -1484,7 +1483,7 @@ class Kitti360DataPublisher(Node):
                                           w=quat[3])
 
         transform_broadcaster.sendTransform(t)
-
+        # _t.toc()
         return dict()
 
     def _publish_2d_semantics(self, frame):
@@ -1500,17 +1499,24 @@ class Kitti360DataPublisher(Node):
             temp_dir = os.path.join(self.DATA_DIRECTORY,
                                     "data_2d_semantics/train",
                                     self.SEQUENCE_DIRECTORY, subdir)
+            
             if pub_bool and (not os.path.exists(temp_dir)):
                 self.logger.error(f"Directory does not exist. Disabling {desc}.")
                 return False
             if pub_bool:
                 try:
-                    data = imageio.v3.imread(
-                        os.path.join(temp_dir, f"{frame:010d}.png")).tobytes()
-                    semantic = dtype()
+                    # data = imageio.v3.imread(
+                    semantic = Image()
                     semantic.width = 1408
                     semantic.height = 376
-                    semantic.data = data
+
+                    _t=TicToc()
+                    _t.tic()
+                    #semantic.data = data
+                    semantic.data.frombytes(imageio.v3.imread(
+                        os.path.join(temp_dir, f"{frame:010d}.png")).tobytes())
+                    _t.toc()
+
                     publisher.publish(semantic)
                 except FileNotFoundError:
                     pass
@@ -1520,38 +1526,38 @@ class Kitti360DataPublisher(Node):
 
         self.publish_semantics_semantic_left = _pub(
             "image_00/semantic/", self.publish_semantics_semantic_left,
-            Kitti360SemanticID, self.ros_publisher_2d_semantics_semantic_left,
+            Image, self.ros_publisher_2d_semantics_semantic_left,
             "2d semanticID left")
         self.publish_semantics_semantic_right = _pub(
             "image_01/semantic/", self.publish_semantics_semantic_right,
-            Kitti360SemanticID, self.ros_publisher_2d_semantics_semantic_right,
+            Image, self.ros_publisher_2d_semantics_semantic_right,
             "2d semanticID right")
         self.publish_semantics_semantic_rgb_left = _pub(
             "image_00/semantic_rgb/", self.publish_semantics_semantic_rgb_left,
-            Kitti360SemanticRGB,
+            Image,
             self.ros_publisher_2d_semantics_semantic_rgb_left,
             "2d semantic rgb left")
         self.publish_semantics_semantic_rgb_right = _pub(
             "image_01/semantic_rgb/",
-            self.publish_semantics_semantic_rgb_right, Kitti360SemanticRGB,
+            self.publish_semantics_semantic_rgb_right, Image,
             self.ros_publisher_2d_semantics_semantic_rgb_right,
             "2d semantic rgb right")
         self.publish_semantics_instance_left = _pub(
             "image_00/instance/", self.publish_semantics_instance_left,
-            Kitti360InstanceID, self.ros_publisher_2d_semantics_instance_left,
+            Image, self.ros_publisher_2d_semantics_instance_left,
             "2d instanceID left")
         self.publish_semantics_instance_right = _pub(
             "image_01/instance/", self.publish_semantics_instance_right,
-            Kitti360InstanceID, self.ros_publisher_2d_semantics_instance_right,
+            Image, self.ros_publisher_2d_semantics_instance_right,
             "2d instanceID right")
         self.publish_semantics_confidence_left = _pub(
             "image_00/confidence/", self.publish_semantics_confidence_left,
-            Kitti360Confidence,
+            Image,
             self.ros_publisher_2d_semantics_confidence_left,
             "2d confidence left")
         self.publish_semantics_confidence_right = _pub(
             "image_01/confidence/", self.publish_semantics_confidence_right,
-            Kitti360Confidence,
+            Image,
             self.ros_publisher_2d_semantics_confidence_right,
             "2d confidence right")
 
