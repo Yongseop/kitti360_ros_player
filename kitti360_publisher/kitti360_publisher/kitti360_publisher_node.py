@@ -168,8 +168,10 @@ class Kitti360DataPublisher(Node):
 
     # data_3d_raw/2013_05_28_drive_{seq:0>4}_sync/velodyne_points/timestamps.txt
     timestamps_velodyne = None
+    timestamps_velodyne_series = None
     # data_3d_raw/2013_05_28_drive_{seq:0>4}_sync/sick_points/timestamps.txt
     timestamps_sick_points = None
+    timestamps_sick_points_series = None
 
     # ------------------------------------------
     # Poses
@@ -394,17 +396,18 @@ class Kitti360DataPublisher(Node):
 
             # if the simulation is paused we do nothing
             if not self.sim_paused:
-                self._simulation_update()
+                self._simulation_update()	# YS: The problem
 
             # update ROS time and player
             self.ros_publisher_clock.publish(self.sim_clock)
 
             # compute how long we need to sleep to match DESIRED_RATE
             loop_duration = time.time() - system_time_loop_start
+            #print(loop_duration)
             if loop_duration < 1 / self.DESIRED_RATE:
                 time.sleep(1 / self.DESIRED_RATE - loop_duration)
 
-    def _simulation_update(self):
+    def _simulation_update(self):	# YS: Problem #1
         # update simulation clock based on when the simulation was last
         # resumed
         # --> (ts when sim was resumed) + (timedelta since then it was resumed)
@@ -416,8 +419,7 @@ class Kitti360DataPublisher(Node):
 
         # need to be handles separately because of higher refresh rate
         sim_update_durations.update(self.handle_sick_points_publishing())
-
-        next_frame = self._get_frame_to_be_published()
+        next_frame = self._get_frame_to_be_published()		# YS: Problem #2
         # -1 --> sim time before first frame
         # using != instead of > to make seeking easier
         if next_frame != -1 and next_frame != self.last_published_frame:
@@ -425,24 +427,20 @@ class Kitti360DataPublisher(Node):
                 self.last_published_frame = next_frame -1
             
             skipped = next_frame - self.last_published_frame - 1
-            # logfunc = rospy.logwarn if skipped > 0 else self.logger.info
             logfunc = self.warning_logger.warning if skipped > 0 else self.logger.info
             if skipped >= 0:
                 skipped_string = f"(skipping {skipped})"
             else:
                 skipped_string = "(backwards)"
-
             logfunc(
                 f"new VELODYNE frame" + f" {skipped_string:<14}" +
                 f"{self._convert_frame_int_to_string(self.last_published_frame)}"
                 + f" -> {self._convert_frame_int_to_string(next_frame)} " +
                 f"({self.sim_clock.clock.sec:.2f}s, {((self.sim_clock.clock.sec/self.total_simulation_time)*100):.1f}%)"
             )
-
             # publish everything that is available
             sim_update_durations.update(
                 self.publish_available_data(next_frame))
-
             # save frame that was just published
             self.last_published_frame = next_frame
 
@@ -725,6 +723,7 @@ class Kitti360DataPublisher(Node):
                              "velodyne_points/timestamps.txt"))
             self.total_number_of_frames_velodyne = self.timestamps_velodyne.shape[0]
             self.total_simulation_time = self.timestamps_velodyne.iloc[-1].sec
+            self.timestamps_velodyne_series = pd.Series([t.sec + t.nanosec / 1e9 for t in self.timestamps_velodyne])
         except FileNotFoundError:
             self.logger.error("timestamps for velodyne not found. FATAL")
             rclpy.shutdown(
@@ -1937,13 +1936,11 @@ class Kitti360DataPublisher(Node):
     def _get_maximum_timestamp(self):
         return self.timestamps_velodyne.iloc[-1]
 
-    def _get_frame_to_be_published(self):
+    def _get_frame_to_be_published(self):	# YS: Problem #2 - clear
         # get last frame before current simulation time
         # NOTE this returns -1 if the simulation time is before the first frame
-
-        timestamps = pd.Series([t.sec + t.nanosec / 1e9 for t in self.timestamps_velodyne])
         new_timestamp = self.sim_clock.clock.sec + self.sim_clock.clock.nanosec / 1e9
-        return timestamps.searchsorted(new_timestamp) - 1
+        return self.timestamps_velodyne_series.searchsorted(new_timestamp) - 1
 
     def _on_last_frame(self):
         """returns whether last published frame is the last frame of the simulation"""
