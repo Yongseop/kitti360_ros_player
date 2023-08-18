@@ -1288,7 +1288,6 @@ class Kitti360DataPublisher:
     def _publish_velodyne(self, frame):
         # if this is false either it was set or the data dir was not found in a
         # previous attempt of this function
-        _time = TicToc()
         
         if not self.publish_velodyne:
             return dict()
@@ -1313,8 +1312,6 @@ class Kitti360DataPublisher:
                                      dtype=np.float32)
         pointcloud_bin = pointcloud_bin.reshape((-1, 4))
 
-        # _time.toc()
-
         # PointCloud2 Message http://docs.ros.org/en/lunar/api/sensor_msgs/html/msg/PointCloud2.html
         # Header http://docs.ros.org/en/lunar/api/std_msgs/html/msg/Header.html
         # PointField http://docs.ros.org/en/lunar/api/sensor_msgs/html/msg/PointField.html
@@ -1338,16 +1335,12 @@ class Kitti360DataPublisher:
         cloud_msg.point_step = 16  # 4 * 4bytes (float32)
         cloud_msg.row_step = 16  # a row is a point in our case
 
-        #_time.tic()
         cloud_msg.data = pointcloud_bin.tobytes()
-        #_time.toc()
 
         cloud_msg.is_dense = True
 
         # publish
-        #_time.tic()
         self.ros_publisher_3d_raw_velodyne.publish(cloud_msg)
-        #_time.toc()
 
         return dict([("velodyne", time.time() - s)])
 
