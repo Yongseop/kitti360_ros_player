@@ -1510,12 +1510,12 @@ class Kitti360DataPublisher(Node):
                     semantic.width = 1408
                     semantic.height = 376
 
-                    _t=TicToc()
-                    _t.tic()
+                    # _t=TicToc()
+                    # _t.tic()
                     #semantic.data = data
                     semantic.data.frombytes(imageio.v3.imread(
                         os.path.join(temp_dir, f"{frame:010d}.png")).tobytes())
-                    _t.toc()
+                    # _t.toc()
 
                     publisher.publish(semantic)
                 except FileNotFoundError:

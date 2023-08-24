@@ -2,3 +2,4 @@
 .vscode/*
 kitti360_publisher/.vscode/*
 kitti360_publisher/launch/__pycache__/*
+*.pyc
