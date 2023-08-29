@@ -25,7 +25,6 @@ from rclpy.duration import Duration
 from rclpy.node import Node
 from pyntcloud import PyntCloud
 import sys
-import threading
 import termios
 import fcntl
 from datetime import timedelta
@@ -258,7 +257,7 @@ class Kitti360DataPublisher(Node):
         
         self.logger = self.get_logger()
         self.warning_logger = self.get_logger()
-        self.warning_logger.set_level(rclpy.logging.LoggingSeverity.INFO)
+        self.warning_logger.set_level(logging.LoggingSeverity.INFO)
 
         self.logger.info("   ___ ___ ___ ___   _   _   _             _   _   __   _")
         self.logger.info("|/  |   |   |   | __ _) |_  / \   o ._    |_) / \ (_   |_|")
@@ -373,7 +372,7 @@ class Kitti360DataPublisher(Node):
         # input_thread.daemon = True
         # input_thread.start()
 
-        self.warning_logger.set_level(rclpy.logging.LoggingSeverity.WARN)
+        self.warning_logger.set_level(logging.LoggingSeverity.WARN)
 
     # ------------------------------------------
     # MAIN LOOP
